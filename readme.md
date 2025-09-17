@@ -8,7 +8,7 @@ Quick Tabs is a tab management browser extension for the Google Chrome web brows
 
 Quick Tabs allows you to move quickly between recently used tabs without requiring the use of your mouse, locate and switch to tabs as you need them with minimal keystrokes even when you have large numbers of open tabs.
 
-Visit the [Quick Tabs](https://chrome.google.com/extensions/detail/jnjfeinjfmenlddahdjdmgpbokiacbbb) google extensions page to install and try it out ...
+Visit the [Quick Tabs](https://chromewebstore.google.com/detail/quick-tabs/jnjfeinjfmenlddahdjdmgpbokiacbbb) google extensions page to install and try it out ...
 
 # FEATURES
 
