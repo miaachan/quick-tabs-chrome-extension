@@ -1,0 +1,90 @@
+/*
+Copyright (c) 2009 - 2019, Evan Jehu
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+    * Redistributions of source code must retain the above copyright
+      notice, this list of conditions and the following disclaimer.
+    * Redistributions in binary form must reproduce the above copyright
+      notice, this list of conditions and the following disclaimer in the
+      documentation and/or other materials provided with the distribution.
+    * Neither the name of the author nor the
+      names of its contributors may be used to endorse or promote products
+      derived from this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY
+DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*/
+
+body {
+  margin: 10px 10% 20px 10%;
+}
+
+div.header img {
+  float: left;
+}
+
+div.header h1 {
+  line-height: 32px;
+  vertical-align: bottom;
+  margin-left: 40px;
+}
+
+tr {
+  font-size: 12px;
+  vertical-align: middle;
+}
+
+fieldset {
+  border-style: dotted;
+  border-color: lightgray;
+  margin-top: 5px;
+  margin-bottom: 10px;
+}
+
+.footnote {
+  font-size: 10px;
+  margin-top: 25px;
+}
+
+.alert {
+  color: black;
+  background-color: #FFF9D2;
+  border: 1px solid #FE8;
+  border-bottom-left-radius: 3px 3px;
+  border-bottom-right-radius: 3px 3px;
+  border-top-left-radius: 3px 3px;
+  border-top-right-radius: 3px 3px;
+  margin: 10px 20% 20px 20%;
+  padding: 0.3em 3em;
+  text-align: center;
+  opacity: 0;
+}
+
+.shortcutAlert {
+  color: #ffffff;
+  background-color: #dc503e;
+  border: 1px solid #c02522;
+  border-bottom-left-radius: 3px 3px;
+  border-bottom-right-radius: 3px 3px;
+  border-top-left-radius: 3px 3px;
+  border-top-right-radius: 3px 3px;
+  margin: 10px 20% 20px 20%;
+  padding: 0.3em 3em;
+  display: none;
+  opacity: 0;
+}
+
+.checkboxRow {
+  padding-left: 1em
+}
+
