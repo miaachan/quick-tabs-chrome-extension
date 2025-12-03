@@ -31,6 +31,8 @@ body {
   overflow: hidden;
   overflow-y: auto;
   line-height: 1.25;
+  margin-left: 0;
+  margin-right: 1em;
 }
 
 .qs_input {
@@ -58,8 +60,8 @@ body {
 
 div.template {
   width: 100%;
-  position:relative;
-  top:0;
+  position: relative;
+  top: 0;
 }
 
 b {
@@ -68,28 +70,29 @@ b {
 }
 
 .withfocus b {
-  color:white;
+  color: white;
 }
 
 .item:hover b {
-  color:white;
+  color: white;
 }
 
 .item {
   padding-top: 1px;
   padding-bottom: 1px;
-  clear:both;
+  clear: both;
   height: 30px;
   cursor: pointer;
-  border-bottom: 1px solid rgba(0,0,0,0.07);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.07);
 }
 
-.item > div:last-child {
-    height: 100%;
+.item>div:last-child {
+  height: 100%;
+  position: relative;
 }
 
 div.tabimage {
-	float: left;
+  float: left;
 }
 
 div.tabimage img {
@@ -137,7 +140,8 @@ div.title {
   color: #212121;
 }
 
-div.title, div.url {
+div.title,
+div.url {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -159,15 +163,21 @@ div.content {
   overflow-x: hidden;
 }
 
-.item:hover, .item:hover div.title, div.closed.item:hover div.title,
+.item:hover,
+.item:hover div.title,
+div.closed.item:hover div.title,
 .item:hover div.url {
   background-color: #ff8732;
   color: white;
 }
 
-.withfocus:hover, .withfocus:hover div.title, div.closed.withfocus:hover div.title,
+.withfocus:hover,
+.withfocus:hover div.title,
+div.closed.withfocus:hover div.title,
 .withfocus:hover div.url,
-.withfocus, .withfocus div.title, div.closed.withfocus div.title,
+.withfocus,
+.withfocus div.title,
+div.closed.withfocus div.title,
 .withfocus div.url {
   background-color: #4285f4;
   color: white;
@@ -179,16 +189,16 @@ img {
 }
 
 .nourl div.title {
-  line-height:25px;
-  vertical-align:middle;
+  line-height: 25px;
+  vertical-align: middle;
 }
 
 .nourl div.url {
-  display:none;
+  display: none;
 }
 
 div.url {
-  display:block;
+  display: block;
   font-size: 9px;
   color: #455A64;
 }
@@ -199,9 +209,9 @@ div.separator.big {
   font-family: "Lucida Grande", Lucida, Verdana, sans-serif;
   font-size: 13px;
   text-align: center;
-  border-top: 1px solid rgba(0,0,0,0.07);
-  border-bottom: 1px solid rgba(0,0,0,0.07);
-  background: rgba(0,0,0,0.07);
+  border-top: 1px solid rgba(0, 0, 0, 0.07);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+  background: rgba(0, 0, 0, 0.07);
   padding-top: 2px;
   margin-top: -1px;
 }
