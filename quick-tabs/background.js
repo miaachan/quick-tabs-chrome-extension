@@ -34,7 +34,7 @@ function DelayedFunction(f, timeout) {
 
   var complete = false;
 
-  var timeoutRef = setTimeout(function() {
+  var timeoutRef = setTimeout(function () {
     _invoke();
   }.bind(this), timeout);
 
@@ -44,13 +44,13 @@ function DelayedFunction(f, timeout) {
     f();
   }
 
-  this.call = function() {
+  this.call = function () {
     if (!complete) {
       _invoke();
     }
   };
 
-  this.cancel = function() {
+  this.cancel = function () {
     complete = true;
     clearTimeout(timeoutRef);
     tabOrderUpdateFunction = null; // have to set variable null so that it's evaluated as false
@@ -91,14 +91,14 @@ var popupMessagePort = null;
 /**
  * base color for the badge text
  */
-var badgeColor = {color: [32, 7, 114, 255]};
+var badgeColor = { color: [32, 7, 114, 255] };
 
-var debugBadgeColor = {color: [255, 0, 0, 255]};
+var debugBadgeColor = { color: [255, 0, 0, 255] };
 
 /**
  * badge text color while the tab order update timer is active
  */
-var tabTimerBadgeColor = {color: [255, 106, 0, 255]};
+var tabTimerBadgeColor = { color: [255, 106, 0, 255] };
 
 var debug = false;
 
@@ -134,7 +134,7 @@ function setDebug(val) {
  */
 function getTabOrderUpdateDelay() {
   let s = Config.get(TAB_ORDER_UPDATE_DELAY);
-  if(s === "0") {
+  if (s === "0") {
     return 0;
   }
   return s ? parseInt(s, 10) || 1500 : 1500;
@@ -155,7 +155,7 @@ function removeClosedTab(url) {
 function addClosedTab(tab) {
   if (isWebUrl(tab.url)) {
     //    log("adding tab " + tab.id + " to closedTabs array " + tab.url);
-    closedTabs.unshift({url: tab.url, title: tab.title, favIconUrl: tab.favIconUrl});
+    closedTabs.unshift({ url: tab.url, title: tab.title, favIconUrl: tab.favIconUrl });
     saveClosedTabs();
   }
   resizeClosedTabs();
@@ -206,17 +206,24 @@ function updateBadgeText() {
   if (Config.get(SHOW_TAB_COUNT)) {
     var val = tabs.filter(tab => Utils.validTab(tab) && Utils.includeTab(tab)).length;
 
-    chrome.action.setBadgeText({text: val + ""});
+    chrome.action.setBadgeText({ text: val + "" });
   } else {
-    chrome.action.setBadgeText({text: ""});
+    chrome.action.setBadgeText({ text: "" });
   }
 }
 
 /**
  * Avoid saving tabs order to local storage with a debounce of 60 seconds.
+ * Reduced to 1 second for Firefox compatibility (and better persistence in general)
+ * to prevent data loss when the background script suspends.
  */
-var debouncedSaveTabsOrder = Utils.debounce(saveTabsOrder, 10_000);
+var debouncedSaveTabsOrder = Utils.debounce(saveTabsOrder, 1_000);
 
+/**
+ * move the tab with tabId to the top of the global tabs array
+ *
+ * @param tabId
+ */
 /**
  * move the tab with tabId to the top of the global tabs array
  *
@@ -224,7 +231,7 @@ var debouncedSaveTabsOrder = Utils.debounce(saveTabsOrder, 10_000);
  */
 function updateTabOrder(tabId) {
   // Don't update when returning to same tab: e.g. when closing extension popups, developer tools, ...
-  if (tabId === tabs[0].id && !tabOrderUpdateFunction) {
+  if (tabs.length > 0 && tabId === tabs[0].id) {
     // log("New Tab is already current tab (1st in list): newTabId = ", tabId ," currentTabId = ", tabs[0].id);
     return
   }
@@ -232,36 +239,58 @@ function updateTabOrder(tabId) {
   // change the badge color while the tab change timer is active
   chrome.action.setBadgeBackgroundColor(tabTimerBadgeColor);
 
-  if (tabOrderUpdateFunction) {
-    // clear current timer
-    tabOrderUpdateFunction.cancel();
-  }
+  // Clear existing alarm
+  chrome.alarms.clear("updateTabOrder");
 
-  // setup a new timer
-  tabOrderUpdateFunction = new DelayedFunction(function() { // @TODO instead of DelayedFunction use setTimeout(fx, time)
-    var idx = indexOfTab(tabId);
-    if (idx >= 0) { // if tab exists in tabs[]
-      //log('updating tab order for', tabId, 'index', idx);
-      var tab = tabs[idx];
-      tabs.splice(idx, 1); // removes tab from old position = idx
-      tabs.unshift(tab); // adds tab to new position = beginning
-      activeTabsIndex = 0; // sync tabs[] pointer and actual current tab
-
-      // move the tab if required
-      if (!Config.get(MOVE_ON_POPUP_SWITCH_ONLY)) {
-        moveTab(tab)
-      }
-    }
-    // reset the badge color
-    chrome.action.setBadgeBackgroundColor(debug ? debugBadgeColor : badgeColor);
-    tabOrderUpdateFunction.cancel(); // #note big bug. Function was never canceled and hence tabOrderUpdateFunction always true
-  }, tabId === skipTabOrderUpdateTimer ? 0 : getTabOrderUpdateDelay());
-
-  // clear the skip var
+  // Determine delay
+  let delay = tabId === skipTabOrderUpdateTimer ? 0 : getTabOrderUpdateDelay();
   skipTabOrderUpdateTimer = null;
 
-  debouncedSaveTabsOrder();
+  // Save the pending tab ID to storage so we can retrieve it when alarm fires (even if suspended)
+  // We use a promise chain or just fire-and-forget set, but for reliability in event pages,
+  // we should ensure it's set before the alarm fires.
+  // Since alarm min delay is usually reliable or immediate, we just set it.
+  chrome.storage.local.set({ 'pendingTabOrderUpdateId': tabId }).then(() => {
+    if (delay === 0) {
+      executeTabOrderUpdate(tabId);
+    } else {
+      // Use alarms for delay
+      chrome.alarms.create("updateTabOrder", { when: Date.now() + delay });
+    }
+  });
 }
+
+function executeTabOrderUpdate(tabId) {
+  var idx = indexOfTab(tabId);
+  if (idx >= 0) { // if tab exists in tabs[]
+    //log('updating tab order for', tabId, 'index', idx);
+    var tab = tabs[idx];
+    tabs.splice(idx, 1); // removes tab from old position = idx
+    tabs.unshift(tab); // adds tab to new position = beginning
+    activeTabsIndex = 0; // sync tabs[] pointer and actual current tab
+
+    // move the tab if required
+    if (!Config.get(MOVE_ON_POPUP_SWITCH_ONLY)) {
+      moveTab(tab)
+    }
+  }
+  // reset the badge color
+  chrome.action.setBadgeBackgroundColor(debug ? debugBadgeColor : badgeColor);
+
+  // Save immediately since we are already delayed by the alarm
+  saveTabsOrder();
+}
+
+// Listen for alarms
+chrome.alarms.onAlarm.addListener(function (alarm) {
+  if (alarm.name === "updateTabOrder") {
+    chrome.storage.local.get('pendingTabOrderUpdateId').then(result => {
+      if (result.pendingTabOrderUpdateId) {
+        executeTabOrderUpdate(result.pendingTabOrderUpdateId);
+      }
+    });
+  }
+});
 
 /**
  * Save tabs order to local storage to be able to restore it after browser or SW restart (could even happen after sleep/hibernate)
@@ -280,7 +309,7 @@ function restoreTabsOrder() {
 
   const tabOrder = {};
   for (let i = tabUrls.length - 1; i >= 0; i--) {
-    tabOrder[tabUrls[i]] = i+1;
+    tabOrder[tabUrls[i]] = i + 1;
   }
 
   tabs.sort((a, b) => (tabOrder[a.url] || Number.MAX_VALUE) - (tabOrder[b.url] || Number.MAX_VALUE));
@@ -293,13 +322,13 @@ function restoreTabsOrder() {
  * @param tab
  */
 function moveTab(tab) {
-  if(!tab.pinned) {
+  if (!tab.pinned) {
     if (Config.get(MOVE_LEFT_ON_SWITCH)) {
       log("moving tab to the left", tab.id);
-      chrome.tabs.move(tab.id, {index: 0});
+      chrome.tabs.move(tab.id, { index: 0 });
     } else if (Config.get(MOVE_ON_SWITCH)) {
       log("moving tab to the right", tab.id);
-      chrome.tabs.move(tab.id, {index: -1});
+      chrome.tabs.move(tab.id, { index: -1 });
     }
   }
 }
@@ -312,8 +341,10 @@ function updateTabsOrder(tabArray) {
 
 function recordTab(tab) {
   if (Utils.includeTab(tab)) {
-    log('recording tab', tab.id);
-    tabs.push(tab);
+    if (indexOfTab(tab.id) === -1) {
+      log('recording tab', tab.id);
+      tabs.push(tab);
+    }
   }
 }
 
@@ -346,11 +377,11 @@ function switchTabsWithoutDelay(tabid) {
 
 function switchTabs(tabid) {
   // find the tab
-  chrome.tabs.get(tabid, function(tab) {
+  chrome.tabs.get(tabid, function (tab) {
     // Focus the window before the tab to fix issue #273
-    chrome.windows.update(tab.windowId, {focused: true}, function() {
+    chrome.windows.update(tab.windowId, { focused: true }, function () {
       // focus the tab
-      chrome.tabs.update(tabid, {active: true}, function(tab) {
+      chrome.tabs.update(tabid, { active: true }, function (tab) {
         // // move the tab if required
         log("switched tabs", tabid, tab);
         if (Config.get(MOVE_ON_POPUP_SWITCH_ONLY)) {
@@ -381,14 +412,14 @@ function traverseTree(treeNode) {
 }
 
 function allBookmarks(callback) {
-  chrome.bookmarks.getTree(function(tree) {
+  chrome.bookmarks.getTree(function (tree) {
     bookmarks = traverseTree(tree[0]);
     callback(bookmarks);
   })
 }
 
 function setupBookmarks() {
-  allBookmarks(function(result) {
+  allBookmarks(function (result) {
     bookmarks = result;
   });
 }
@@ -411,7 +442,15 @@ async function reloadConfig() {
   resizeClosedTabs();
 }
 
+// Promise to track initialization state
+let readyPromiseResolve;
+const readyPromise = new Promise(resolve => {
+  readyPromiseResolve = resolve;
+});
+
 async function init() {
+
+  await Config.init();
 
   // This block can be removed in the future, when all users have updated to the current version.
   // We need to open a page to copy data from localStorage (not accesible from SW) to chrome.storage.local.
@@ -431,7 +470,7 @@ async function init() {
   debug = Config.get(DEBUG);
 
   // reset the extension state
-  tabs = [];
+  // tabs = []; // Don't wipe tabs, as events might have populated them already
   closedTabs = [];
   bookmarks = [];
 
@@ -456,149 +495,221 @@ async function init() {
   log('initial selected tab', tabArray);
   updateTabsOrder(tabArray);
 
-  // attach an event handler to capture tabs as they are closed
-  chrome.tabs.onRemoved.addListener(function(tabId) {
-    recordTabsRemoved([tabId], null);
-    if (Config.get(JUMP_TO_LATEST_TAB_ON_CLOSE)) {
-      switchTabs(tabs[activeTabsIndex].id); // jump to latest = tabs[0]
-    }
-  });
-
-  // attach an event handler to capture tabs as they are opened
-  chrome.tabs.onCreated.addListener(function(tab) {
-    if (!Utils.includeTab(tab)) {
-      return;
-    }
-    //      log('created tab', tab, 'selected tab is ', t2);
-
-    // remove the tab from the closed tab list if present
-    var idx = indexOfTabByUrl(closedTabs, tab.url);
-    if (idx >= 0) {
-      closedTabs.splice(idx, 1);
-    }
-
-    // add foreground tabs first in list and background tabs to end
-    if (tab.active) {
-      tabs.unshift(tab);
-      updateTabOrder(tab.id); // change tab order only for tabs opened in foreground, hence were focused
-      if (!Config.get(MOVE_ON_POPUP_SWITCH_ONLY)) {
-        moveTab(tab);
-      }
-    } else {
-      tabs.push(tab);
-    }
-    updateBadgeText();
-  });
-
-  chrome.tabs.onUpdated.addListener(function(tabId, changeInfo, tab) {
-//    log('onUpdated tab', tab.id, tabId);
-    tabs[indexOfTab(tabId)] = tab;
-    updateBadgeText();
-  });
-
-  chrome.tabs.onActivated.addListener(function(info) {
-//    log('onActivated tab', info.tabId);
-    updateTabOrder(info.tabId);
-  });
-
-  chrome.tabs.onReplaced.addListener(function(addedTabId, removedTabId) {
-    // log('onReplaced', 'addedTabId:', addedTabId, 'removedTabId:', removedTabId);
-    chrome.tabs.get(addedTabId, function(tab) {
-      tabs[indexOfTab(removedTabId)] = tab;
-    })
-  });
-
-  chrome.windows.onFocusChanged.addListener(function(windowId) {
-    if (windowId !== chrome.windows.WINDOW_ID_NONE) {
-      chrome.tabs.query({windowId: windowId, active: true}, function(tabArray) {
-//        log('onFocusChanged tab', tabArray);
-        updateTabsOrder(tabArray);
-      });
-    }
-  });
-
-  chrome.commands.onCommand.addListener(function(command) {
-    //log('Command:', command);
-
-    if (popupMessagePort) { // shortcut triggered from inside popup
-      if (command === "quick-prev-tab") {
-        popupMessagePort.postMessage({cmd: "prev"});
-      } else if (command === "quick-next-tab") {
-        popupMessagePort.postMessage({cmd: "next"});
-      } else if (command === "quick-duplicate-tab") {
-        popupMessagePort.postMessage({cmd: "duplicate"});
-      }
-    } else { // shortcut triggered anywhere else in Chrome or even Global
-      if (tabs.length > 1) {
-        if (command === "quick-prev-tab") {
-          // Differ between: normal Chrome tab || Global OS-app, chrome windowsTypes: 'popup','devtools'
-          chrome.windows.getLastFocused({populate: false, windowTypes: ['normal', 'popup']}, function(window) {
-            // Chrome is currently focused, and more specifically a normal chrome tab
-            chrome.tabs.query({active: true, currentWindow: true}, function(t) {
-              var activeTab = t[0];
-              if (activeTab && activeTab.id === tabs[activeTabsIndex].id) {
-                switchTabs(tabs[activeTabsIndex + 1].id); // jump to previous = tabs[1]
-                activeTabsIndex++;
-              } else {
-                // since the user has some other tab active and not the latest, first jump back to it
-                switchTabs(tabs[activeTabsIndex].id); // jump to latest = tabs[0]
-              }
-            });
-          });
-        } else if (command === "quick-next-tab" && activeTabsIndex !== 0) {
-          // next can only work if switched already to previous, and hence latest tab isn't selected / activeTabsIndex != 0
-          switchTabs(tabs[activeTabsIndex - 1].id);
-          activeTabsIndex--;
-        } else if (command === "quick-duplicate-tab") {
-          chrome.tabs.query({active: true, currentWindow: true}, function(t) {
-            if(t.length > 0) {
-              chrome.tabs.duplicate(t[0].id);
-            }
-          });
-        }
-      }
-    }
-  });
-
-  chrome.runtime.onConnect.addListener(function(port) {
-    if (port.name === "qtPopup") {
-      //log("popup opened!");
-      popupMessagePort = port;
-      if (tabOrderUpdateFunction) {
-        tabOrderUpdateFunction.call();
-      }
-      popupMessagePort.onDisconnect.addListener(function(msg) {
-        //log("popup closed!", msg);
-        popupMessagePort = null;
-      });
-    }
-  });
-
-  chrome.bookmarks.onCreated.addListener(function() {setupBookmarks()});
-  chrome.bookmarks.onRemoved.addListener(function() {setupBookmarks()});
-  chrome.bookmarks.onChanged.addListener(function() {setupBookmarks()});
-  chrome.bookmarks.onMoved.addListener(function() {setupBookmarks()});
-
-  setupBookmarks();
-
-  chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
-    if (msg.call) {
-      if (typeof self[msg.call] === 'function') {
-        sendResponse(self[msg.call](msg.arg));
-      } else {
-        sendResponse({});
-      }
-    }
-  });
-
   if (Config.get(CLOSED_TABS_LIST_SAVE)) {
     closedTabs = JSON.parse(Config.get(CLOSED_TABS) || '[]');
   }
 
-  // keep the service worker alive, perhaps not a beautifull solution,
-  // but that's better than a constantly restarting service worker
-  setInterval(chrome.runtime.getPlatformInfo, 25_000);
+  // Signal that initialization is complete
+  if (readyPromiseResolve) {
+    readyPromiseResolve();
+    readyPromiseResolve = null; // Prevent multiple calls if init runs again? (init shouldn't run multiple times usually)
+  }
 }
+
+// Attach event handlers immediately (top-level) so they are registered synchronously
+// This is critical for Event Pages / Service Workers
+
+// attach an event handler to capture tabs as they are closed
+chrome.tabs.onRemoved.addListener(function (tabId) {
+  recordTabsRemoved([tabId], null);
+  if (Config.get(JUMP_TO_LATEST_TAB_ON_CLOSE)) {
+    switchTabs(tabs[activeTabsIndex].id); // jump to latest = tabs[0]
+  }
+});
+
+// attach an event handler to capture tabs as they are opened
+chrome.tabs.onCreated.addListener(function (tab) {
+  if (!Utils.includeTab(tab)) {
+    return;
+  }
+  //      log('created tab', tab, 'selected tab is ', t2);
+
+  // remove the tab from the closed tab list if present
+  var idx = indexOfTabByUrl(closedTabs, tab.url);
+  if (idx >= 0) {
+    closedTabs.splice(idx, 1);
+  }
+
+  // add foreground tabs first in list and background tabs to end
+  if (tab.active) {
+    tabs.unshift(tab);
+    updateTabOrder(tab.id); // change tab order only for tabs opened in foreground, hence were focused
+    if (!Config.get(MOVE_ON_POPUP_SWITCH_ONLY)) {
+      moveTab(tab);
+    }
+  } else {
+    tabs.push(tab);
+  }
+  updateBadgeText();
+});
+
+chrome.tabs.onUpdated.addListener(function (tabId, changeInfo, tab) {
+  //    log('onUpdated tab', tab.id, tabId);
+  var idx = indexOfTab(tabId);
+  if (idx >= 0) {
+    tabs[idx] = tab;
+  } else {
+    // If we missed the creation or it wasn't recorded yet
+    recordTab(tab);
+  }
+  updateBadgeText();
+});
+
+chrome.tabs.onActivated.addListener(function (info) {
+  //    log('onActivated tab', info.tabId);
+  updateTabOrder(info.tabId);
+});
+
+chrome.tabs.onReplaced.addListener(function (addedTabId, removedTabId) {
+  // log('onReplaced', 'addedTabId:', addedTabId, 'removedTabId:', removedTabId);
+  chrome.tabs.get(addedTabId, function (tab) {
+    var idx = indexOfTab(removedTabId);
+    if (idx >= 0) {
+      tabs[idx] = tab;
+    } else {
+      recordTab(tab);
+    }
+  })
+});
+
+chrome.windows.onFocusChanged.addListener(function (windowId) {
+  if (windowId !== chrome.windows.WINDOW_ID_NONE) {
+    chrome.tabs.query({ windowId: windowId, active: true }, function (tabArray) {
+      //        log('onFocusChanged tab', tabArray);
+      updateTabsOrder(tabArray);
+    });
+  }
+});
+
+chrome.commands.onCommand.addListener(function (command) {
+  //log('Command:', command);
+
+  if (popupMessagePort) { // shortcut triggered from inside popup
+    if (command === "quick-prev-tab") {
+      popupMessagePort.postMessage({ cmd: "prev" });
+    } else if (command === "quick-next-tab") {
+      popupMessagePort.postMessage({ cmd: "next" });
+    } else if (command === "quick-duplicate-tab") {
+      popupMessagePort.postMessage({ cmd: "duplicate" });
+    }
+  } else { // shortcut triggered anywhere else in Chrome or even Global
+    if (tabs.length === 0) {
+      // If tabs are empty, try to re-initialize or just return to avoid errors
+      // This might happen if the background script was suspended and state was lost
+      // We can try to recover by querying current tabs, but for now let's just log and return
+      log("Tabs array is empty, cannot switch tabs.");
+      // Attempt to re-init if needed, but init() is async.
+      // For now, let's just bail.
+      return;
+    }
+
+    if (tabs.length > 1) {
+      if (command === "quick-prev-tab") {
+        // Differ between: normal Chrome tab || Global OS-app, chrome windowsTypes: 'normal','popup'
+        chrome.windows.getLastFocused({ populate: false, windowTypes: ['normal', 'popup'] }, function (window) {
+          // Chrome is currently focused, and more specifically a normal chrome tab
+          chrome.tabs.query({ active: true, currentWindow: true }, function (t) {
+            var activeTab = t[0];
+            // Ensure activeTabsIndex is within bounds
+            if (activeTabsIndex >= tabs.length) {
+              activeTabsIndex = 0;
+            }
+
+            if (activeTab && activeTab.id === tabs[activeTabsIndex].id) {
+              // We are at the expected tab in our MRU history
+              if (activeTabsIndex + 1 < tabs.length) {
+                switchTabs(tabs[activeTabsIndex + 1].id); // jump to previous
+                activeTabsIndex++;
+              } else {
+                // End of list, wrap around or stay? Original behavior seems to stay or just fail.
+                // Let's wrap to 0? Or just stay.
+                // For now, do nothing if at end of list.
+              }
+            } else {
+              // The user manually switched tabs or state is desynced.
+              // Reset to the current head of the list (which should be the current tab if updateTabOrder ran,
+              // or the previous tab if we are in the middle of a switch).
+              // Actually, if we are desynced, we should probably jump to the 2nd tab (previous) relative to NOW?
+              // But tabs[0] is supposed to be the current tab.
+              // Let's reset index to 0 and jump to tabs[1] if possible.
+              activeTabsIndex = 0;
+              if (tabs.length > 1) {
+                switchTabs(tabs[1].id);
+                activeTabsIndex = 1;
+              }
+            }
+          });
+        });
+      } else if (command === "quick-next-tab") {
+        // Ensure activeTabsIndex is within bounds
+        if (activeTabsIndex >= tabs.length) {
+          activeTabsIndex = tabs.length - 1;
+        }
+
+        if (activeTabsIndex > 0) {
+          switchTabs(tabs[activeTabsIndex - 1].id);
+          activeTabsIndex--;
+        }
+      } else if (command === "quick-duplicate-tab") {
+        chrome.tabs.query({ active: true, currentWindow: true }, function (t) {
+          if (t.length > 0) {
+            chrome.tabs.duplicate(t[0].id);
+          }
+        });
+      }
+    }
+  }
+});
+
+chrome.runtime.onConnect.addListener(function (port) {
+  if (port.name === "qtPopup") {
+    //log("popup opened!");
+    popupMessagePort = port;
+    if (tabOrderUpdateFunction) {
+      tabOrderUpdateFunction.call();
+    }
+    popupMessagePort.onDisconnect.addListener(function (msg) {
+      //log("popup closed!", msg);
+      popupMessagePort = null;
+    });
+  }
+});
+
+chrome.bookmarks.onCreated.addListener(function () { setupBookmarks() });
+chrome.bookmarks.onRemoved.addListener(function () { setupBookmarks() });
+chrome.bookmarks.onChanged.addListener(function () { setupBookmarks() });
+chrome.bookmarks.onMoved.addListener(function () { setupBookmarks() });
+
+setupBookmarks();
+
+chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
+  if (msg.call) {
+    if (typeof self[msg.call] === 'function') {
+      sendResponse(self[msg.call](msg.arg));
+    } else {
+      sendResponse({});
+    }
+  }
+});
+
+// Listen for alarms
+chrome.alarms.onAlarm.addListener(function (alarm) {
+  if (alarm.name === "updateTabOrder") {
+    // Wait for initialization to complete before processing the alarm
+    readyPromise.then(() => {
+      chrome.storage.local.get('pendingTabOrderUpdateId').then(result => {
+        if (result.pendingTabOrderUpdateId) {
+          executeTabOrderUpdate(result.pendingTabOrderUpdateId);
+        }
+      });
+    });
+  }
+});
+
+// keep the service worker alive, perhaps not a beautifull solution,
+// but that's better than a constantly restarting service worker
+setInterval(chrome.runtime.getPlatformInfo, 25_000);
+
 
 if (self.Config) {
   init();
@@ -619,7 +730,7 @@ function splitTabs(tabsToInclude) {
     tabId: head,
     type: "normal",
     focused: true,
-  }, function(window) {
+  }, function (window) {
     chrome.tabs.move(tail, {
       windowId: window.id,
       index: -1

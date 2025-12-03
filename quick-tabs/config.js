@@ -34,7 +34,7 @@ const SHOW_URLS = 'show_urls';
 const TAB_ORDER_UPDATE_DELAY = 'tab_order_update_delay';
 const TABS_ORDER = 'tabs_order';
 
-var Config = (function() {
+var Config = (function () {
   let data = {};
 
   return {
@@ -56,7 +56,7 @@ var Config = (function() {
       data[NEW_TAB_POPUP] ??= { ctrl: true, key: "return" };
       data[SEARCH_TYPE] ??= 'fuseT1';
       data[HISTORY_FILTER] ??= '';
-      data[TAB_ORDER_UPDATE_DELAY] ??= 1500;
+      data[TAB_ORDER_UPDATE_DELAY] ??= 500;
       data[PAGEUP_PAGEDOWN_SKIP_SIZE] ??= 5;
       data[CLOSED_TABS_SIZE] ??= 10;
       data[DEBOUNCE_DELAY] ??= 200;
@@ -85,7 +85,7 @@ var Config = (function() {
       if (typeof key === 'string') {
         try {
           key = JSON.parse(key);
-        } catch(e) {
+        } catch (e) {
           key = {};
         }
       }
@@ -110,10 +110,10 @@ function ShortcutKey(properties) {
   this.key = properties.key || '';
 }
 
-ShortcutKey.prototype.pattern = function() {
+ShortcutKey.prototype.pattern = function () {
   return (this.alt ? "alt_" : "")
-      + (this.meta ? "meta_" : "")
-      + (this.ctrl ? "ctrl_" : "")
-      + (this.shift ? "shift_" : "")
-      + (this.key);
+    + (this.meta ? "meta_" : "")
+    + (this.ctrl ? "ctrl_" : "")
+    + (this.shift ? "shift_" : "")
+    + (this.key);
 };
