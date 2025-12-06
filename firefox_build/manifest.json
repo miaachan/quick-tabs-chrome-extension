@@ -19,6 +19,7 @@
   },
   "manifest_version": 3,
   "name": "Quick Tabs",
+  "homepage_url": "https://github.com/miaachan/quick-tabs-chrome-extension",
   "options_page": "options.html",
   "permissions": [
     "tabs",
@@ -27,7 +28,7 @@
     "storage",
     "alarms"
   ],
-  "version": "2024.11.26",
+  "version": "2025.12.6",
   "commands": {
     "_execute_action": {
       "suggested_key": {
@@ -48,7 +49,7 @@
   },
   "browser_specific_settings": {
     "gecko": {
-      "id": "quick-tabs@babyman.github.com"
+      "id": "{f8fb8b89-f9f6-4463-91cc-0e26d5d20610}"
     }
   }
 }
