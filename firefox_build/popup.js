@@ -1005,11 +1005,10 @@
   FuseSearch.prototype.searchTabArray = function (query, tabs) {
     var options = {
       location: 0,
-      distance: 1000, // such a high value since searchterm can appear anywhere within URL/Title
-      // thus distance from location shouldn't matter much, hence increasing distance.
+      distance: 1000,
+      ignoreLocation: true, // v7: ignore location distance check for better full-string matching
       shouldSort: true,
       includeMatches: true,
-      maxPatternLength: 32,
       minMatchCharLength: 1,
       keys: [{
         name: 'title',
@@ -1027,13 +1026,11 @@
     switch (Config.get(SEARCH_TYPE)) {
       case 'fuseT1':
       default:
-        options.threshold = 0.6; //needs higher values since pure fuzzy search results have higher scores
-        //keep options as set above
+        options.threshold = 0.6;
         break;
       case 'fuseT2':
-        options.tokenize = true;
-        options.matchAllTokens = true;
-        options.threshold = 0.4; //can afford lower one since result scores are overall lower and near zero if words match
+        options.useExtendedSearch = true; // v7: replacement for advanced tokenization
+        options.threshold = 0.4;
         break;
     }
 
