@@ -59,6 +59,16 @@
   var historyCache = null;
 
   /**
+   * Web Worker for history search (created lazily)
+   */
+  var historyWorker = null;
+
+  /**
+   * Counter for history search requests to handle cancellation
+   */
+  var historySearchId = 0;
+
+  /**
    * the search implementation to be used when search tabs
    */
   var search = null;
@@ -878,49 +888,98 @@
   }
 
   /**
+   * Get Fuse.js options for history search (based on current config)
+   */
+  function getHistoryFuseOptions() {
+    var options = {
+      location: 0,
+      distance: 1000,
+      ignoreLocation: true,
+      shouldSort: true,
+      includeMatches: true,
+      minMatchCharLength: 1,
+      keys: [{
+        name: 'title',
+        weight: 1.0
+      }]
+    };
+
+    if (Config.get(SHOW_URLS) || Config.get(SEARCH_URLS)) {
+      options.keys.push({
+        name: 'url',
+        weight: 0.9
+      });
+    }
+
+    switch (Config.get(SEARCH_TYPE)) {
+      case 'fuseT1':
+      default:
+        options.threshold = 0.6;
+        break;
+      case 'fuseT2':
+        options.useExtendedSearch = true;
+        options.threshold = 0.4;
+        break;
+    }
+
+    return options;
+  }
+
+  /**
    * Load all of the browser history and search it for the best matches
+   * Uses a Web Worker to avoid blocking the main thread
    *
    * @param searchStr
    * @param since
    */
   AbstractSearch.prototype.searchHistory = function (searchStr, since) {
-    var doSearch = function (h) {
-      renderTabs({
-        history: this.searchTabArray(searchStr, h).slice(0, MAX_NON_TAB_RESULTS)
-      });
-    }.bind(this);
+    var currentSearchId = ++historySearchId;
 
-    /**
-     * compile the history filter regexp
-     */
+    // Lazy-init the history worker
+    if (!historyWorker) {
+      historyWorker = new Worker('history-worker.js');
+      historyWorker.onmessage = function (e) {
+        if (e.data.type === 'results' && e.data.searchId === historySearchId) {
+          // Only render if this is still the current search
+          renderTabs({ history: e.data.results });
+        }
+        // else: stale result, discard silently
+      };
+      historyWorker.onerror = function (e) {
+        log("History worker error:", e.message);
+      };
+    }
+
     var filterString = Config.get(HISTORY_FILTER).trim();
-    var filterRegEx = filterString.length > 0 ? new RegExp(filterString) : null;
-
-    /**
-     * test each url against a regular expression to see if it should be included in the history search
-     * https?:\/\/www\.(google|bing)\.(ca|com|co\.uk)\/(search|images)
-     */
-    var includeUrl = function (url) {
-      return !filterRegEx || !filterRegEx.exec(url);
-    };
+    var fuseOptions = getHistoryFuseOptions();
 
     if (historyCache !== null) {
-      // use the cached values
-      doSearch(historyCache);
+      // History already loaded, just search with cached data in worker
+      historyWorker.postMessage({
+        type: 'search',
+        searchId: currentSearchId,
+        history: null, // Signal to use cached history in worker
+        query: searchStr,
+        filterRegex: filterString,
+        fuseOptions: fuseOptions
+      });
     } else {
-      // load browser history
+      // Load browser history then send to worker
       chrome.history.search({ text: "", maxResults: 1000000000, startTime: since }, function (result) {
+        log("loaded history for search, sending to worker (unfiltered:", result.length, ")");
 
-        var includeView = function (v) {
-          return v.url && v.title && includeUrl(v.url)
-        };
+        // Mark that we've loaded history (actual filtering happens in worker)
+        historyCache = true; // Use truthy value to indicate loaded
 
-        historyCache = result.filter(includeView);
-
-        log("loaded history for search", historyCache.length, " (unfiltered: ", result.length, ")");
-
-        doSearch(historyCache);
-      })
+        historyWorker.postMessage({
+          type: 'search',
+          searchId: currentSearchId,
+          history: result, // Send raw history to worker for filtering
+          query: searchStr,
+          filterRegex: filterString,
+          fuseOptions: fuseOptions
+        });
+      });
     }
   };
 
